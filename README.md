@@ -59,16 +59,14 @@ Threshold Optimization → Evaluation
 
 ---
 ## Run Locally
-#1. Clone the repository
-git clone https://github.com/your-username/churn-prediction.git
+# 1. Clone the repo
+git clone https://github.com/YOUR_USERNAME/customer-churn-predictor.git
+cd customer-churn-predictor
 
-#2. Navigate to project folder
-cd churn-prediction
-
-#3. Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 
-#4. Run the app
+# 3. Run the app
 streamlit run app.py
 
 ---
