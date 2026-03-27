@@ -31,15 +31,15 @@ Threshold Optimization → Evaluation
 --- 
 
 ##  Features
-### Data Handling
-### Data Preprocessing
-### Feature Engineering
-### Encoding & Scaling
-### Class Imbalance Handling
-### Model Optimization
-### Threshold Adjustment
-### Model Evaluation
-### Visualizations
+- Data Handling
+- Data Preprocessing
+- Feature Engineering
+- Encoding & Scaling
+- Class Imbalance Handling
+- Model Optimization
+- Threshold Adjustment
+- Model Evaluation
+- Visualizations
 ---
 ## Results (on Telco Dataset)
 
