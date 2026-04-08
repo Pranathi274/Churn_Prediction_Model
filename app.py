@@ -313,72 +313,110 @@ div.rtag-ok * {
 # ═══════════════════════════════════════════════════════════════
 @st.cache_data
 def load_and_clean(path="telecom_dataset.csv"):
+    # ✅ FIX: avoid Arrow dtype issues
     df = pd.read_csv(path)
+    df = df.convert_dtypes(dtype_backend="numpy_nullable")
+
     df.drop(columns=["customerID"], inplace=True)
     df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
     df.loc[df["tenure"] == 0, "TotalCharges"] = 0
+
     df["Churn"]  = df["Churn"].map({"Yes": 1, "No": 0})
     df["gender"] = df["gender"].map({"Female": 1, "Male": 0})
+
     for col in ["Partner", "Dependents", "PhoneService", "PaperlessBilling"]:
-        if df[col].dtype == object:
+        if df[col].dtype == object or "string" in str(df[col].dtype):
             df[col] = df[col].map({"Yes": 1, "No": 0})
+
     return df
 
 
 def engineer_features(df, median_charge):
     df = df.copy()
-    add_svcs = ["OnlineSecurity", "OnlineBackup", "DeviceProtection",
-                "TechSupport", "StreamingTV", "StreamingMovies"]
-    for col in ["MultipleLines"] + add_svcs:
-        df[col] = df[col].replace({"No phone service": "No", "No internet service": "No"})
 
-    df["IsFirstYear"]      = (df["tenure"] <= 12).astype(int)
+    add_svcs = ["OnlineSecurity","OnlineBackup","DeviceProtection",
+                "TechSupport","StreamingTV","StreamingMovies"]
+
+    for col in ["MultipleLines"] + add_svcs:
+        df[col] = df[col].replace({
+            "No phone service": "No",
+            "No internet service": "No"
+        })
+
+    df["IsFirstYear"] = (df["tenure"] <= 12).fillna(False).astype(int)
+
     df["AvgMonthlyCharge"] = df.apply(
-        lambda x: x["TotalCharges"] / x["tenure"] if x["tenure"] > 0 else x["MonthlyCharges"],
+        lambda x: x["TotalCharges"]/x["tenure"] if x["tenure"] > 0 else x["MonthlyCharges"],
         axis=1
     )
 
-    all_svcs_c = ["PhoneService", "MultipleLines", "OnlineSecurity", "OnlineBackup",
-                  "DeviceProtection", "TechSupport", "StreamingTV", "StreamingMovies"]
+    all_svcs_c = ["PhoneService","MultipleLines","OnlineSecurity","OnlineBackup",
+                  "DeviceProtection","TechSupport","StreamingTV","StreamingMovies"]
 
-    # FIX: cast to plain numpy int to avoid Arrow-backed dtype arithmetic errors
     svc_num = df[all_svcs_c].apply(
-        lambda c: c.map({"Yes": 1, "No": 0}) if c.dtype == object else c
-    ).astype(int)
+        lambda c: c.map({"Yes": 1, "No": 0}) if c.dtype == object or "string" in str(c.dtype) else c
+    )
 
-    df["ChargePerService"]      = df["MonthlyCharges"] / (svc_num.sum(axis=1) + 1)
-    df["HighCostLowTenure"]     = (
-        (df["MonthlyCharges"] > median_charge) & (df["tenure"] < 12)
-    ).astype(int)
+    df["ChargePerService"] = df["MonthlyCharges"] / (svc_num.sum(axis=1) + 1)
+
+    # ✅ FIXED
+    df["HighCostLowTenure"] = (
+        ((df["MonthlyCharges"] > median_charge) & (df["tenure"] < 12))
+        .fillna(False)
+        .astype(int)
+    )
+
     df["NumAdditionalServices"] = df[add_svcs].apply(lambda x: (x == "Yes").sum(), axis=1)
-    df["HasInternetService"]    = (df["InternetService"] != "No").astype(int)
-    df["FiberOpticUser"]        = (df["InternetService"] == "Fiber optic").astype(int)
-    df["IsMonthToMonth"]        = (df["Contract"] == "Month-to-month").astype(int)
-    df["ChargeContractRisk"]    = df["MonthlyCharges"] * df["IsMonthToMonth"]
+
+    df["HasInternetService"] = (df["InternetService"] != "No").fillna(False).astype(int)
+    df["FiberOpticUser"] = (df["InternetService"] == "Fiber optic").fillna(False).astype(int)
+    df["IsMonthToMonth"] = (df["Contract"] == "Month-to-month").fillna(False).astype(int)
+
+    df["ChargeContractRisk"] = df["MonthlyCharges"] * df["IsMonthToMonth"]
+
     df["PaymentRisk"] = df["PaymentMethod"].map({
         "Electronic check": 3,
         "Mailed check": 2,
         "Bank transfer (automatic)": 1,
-        "Credit card (automatic)": 1,
+        "Credit card (automatic)": 1
     })
-    df["AutoPayment"]            = df["PaymentMethod"].apply(
-        lambda x: 1 if "automatic" in str(x).lower() else 0
+
+    df["AutoPayment"] = df["PaymentMethod"].apply(
+        lambda x: 1 if isinstance(x, str) and "automatic" in x.lower() else 0
     )
-    df["HasFamily"]              = (
-        (df["Partner"] == 1) | (df["Dependents"] == 1)
-    ).astype(int)
-    df["SeniorAlone"]            = (
-        (df["SeniorCitizen"] == 1) & (df["Partner"] == 0) & (df["Dependents"] == 0)
-    ).astype(int)
+
+    df["HasFamily"] = (
+        ((df["Partner"] == 1) | (df["Dependents"] == 1))
+        .fillna(False)
+        .astype(int)
+    )
+
+    # ✅ FIXED
+    df["SeniorAlone"] = (
+        ((df["SeniorCitizen"] == 1) &
+         (df["Partner"] == 0) &
+         (df["Dependents"] == 0))
+        .fillna(False)
+        .astype(int)
+    )
+
+    # ✅ FIXED
     df["SeniorMonthlyNoSupport"] = (
-        (df["SeniorCitizen"] == 1) & (df["IsMonthToMonth"] == 1) & (df["TechSupport"] == "No")
-    ).astype(int)
-    df["MultipleRiskFactors"]    = (
-        df["IsMonthToMonth"]
-        + df["FiberOpticUser"]
-        + (df["PaymentRisk"] == 3).astype(int)
-        + (df["tenure"] <= 12).astype(int)
+        ((df["SeniorCitizen"] == 1) &
+         (df["IsMonthToMonth"] == 1) &
+         (df["TechSupport"] == "No"))
+        .fillna(False)
+        .astype(int)
     )
+
+    # ✅ FIXED
+    df["MultipleRiskFactors"] = (
+        df["IsMonthToMonth"].astype(int)
+        + df["FiberOpticUser"].astype(int)
+        + (df["PaymentRisk"] == 3).fillna(False).astype(int)
+        + (df["tenure"] <= 12).fillna(False).astype(int)
+    )
+
     return df
 
 
