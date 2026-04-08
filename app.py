@@ -353,10 +353,14 @@ def engineer_features(df, median_charge):
     all_svcs_c = ["PhoneService","MultipleLines","OnlineSecurity","OnlineBackup",
                   "DeviceProtection","TechSupport","StreamingTV","StreamingMovies"]
 
-    svc_num = df[all_svcs_c].apply(
-        lambda c: c.map({"Yes": 1, "No": 0}) if c.dtype == object or "string" in str(c.dtype) else c
-    )
-
+    svc_num = df[all_svcs_c].copy()
+    
+    # Convert ALL columns safely to numeric (very important)
+    for col in svc_num.columns:
+        svc_num[col] = svc_num[col].map({"Yes": 1, "No": 0}).fillna(0)
+    
+    svc_num = svc_num.astype(float)
+    
     df["ChargePerService"] = df["MonthlyCharges"] / (svc_num.sum(axis=1) + 1)
 
     # ✅ FIXED
@@ -375,11 +379,11 @@ def engineer_features(df, median_charge):
     df["ChargeContractRisk"] = df["MonthlyCharges"] * df["IsMonthToMonth"]
 
     df["PaymentRisk"] = df["PaymentMethod"].map({
-        "Electronic check": 3,
-        "Mailed check": 2,
-        "Bank transfer (automatic)": 1,
-        "Credit card (automatic)": 1
-    })
+    "Electronic check": 3,
+    "Mailed check": 2,
+    "Bank transfer (automatic)": 1,
+    "Credit card (automatic)": 1
+}).fillna(0)
 
     df["AutoPayment"] = df["PaymentMethod"].apply(
         lambda x: 1 if isinstance(x, str) and "automatic" in x.lower() else 0
