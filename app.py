@@ -776,8 +776,9 @@ with tab2:
                 return "background-color:rgba(34,197,94,.2);color:#22c55e"
 
             st.dataframe(
-                df_res.style.applymap(_color_risk, subset=["Risk_Level"]),
-                use_container_width=True, height=400,
+                df_res.style.map(_color_risk, subset=["Risk_Level"]),
+                use_container_width=True,
+                height=400
             )
             st.download_button(
                 "⬇️ Download Results CSV",
